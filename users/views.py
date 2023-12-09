@@ -1,30 +1,38 @@
-from django.shortcuts import render
-from rest_framework.views import APIView
+import hashlib
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.views import APIView
 from rest_framework.authentication import TokenAuthentication
-from .serializer import UserPostSerializers
+from rest_framework.permissions import IsAuthenticated
 from .models import Post
-
+from .serializer import UserPostSerializers
 
 class UserPostView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
-    def post(self,request):
-        resp = {"status":0,"message":"somthing Wrong"}
+
+    def post(self, request):
+        resp = {"status": 0, "message": "Something went wrong"}
         data = request.data
         user_id = request.user.id
         data['user_id'] = request.user.id
-        serlizer_data = UserPostSerializers(data=data)
-        if serlizer_data.is_valid():
-            serlizer_data.save()
-            resp['status']=1
-            resp['message']= "User Post Saved"
+
+        # Create a hash key from the text
+        text = data['text']
+        hash_key = hashlib.sha256(text.encode()).hexdigest()
+        data['unique_key'] = hash_key
+
+        # Use the serializer with the custom validator
+        serializer_data = UserPostSerializers(data=data, context={'request': request})
+
+        if serializer_data.is_valid():
+            serializer_data.save()
+            resp['status'] = 1
+            resp['message'] = "User Post Saved"
         else:
             resp['status'] = 0
+            resp['message'] = serializer_data.errors
+
         return Response(resp)
-    
 class UserPostAnalysis(APIView):
 
     def get(self,request,post_id):
