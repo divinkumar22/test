@@ -1,3 +1,4 @@
+from rest_framework import status
 import hashlib
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,7 +12,6 @@ class UserPostView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        resp = {"status": 0, "message": "Something went wrong"}
         data = request.data
         user_id = request.user.id
         data['user_id'] = request.user.id
@@ -26,36 +26,37 @@ class UserPostView(APIView):
 
         if serializer_data.is_valid():
             serializer_data.save()
-            resp['status'] = 1
-            resp['message'] = "User Post Saved"
+            return Response({"status": 1, "message": "User Post Saved"}, status=status.HTTP_201_CREATED)
         else:
-            resp['status'] = 0
-            resp['message'] = serializer_data.errors
+            return Response({"status": 0, "message": "Failed to save user post", "errors": serializer_data.errors},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(resp)
+
 class UserPostAnalysis(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
 
-    def get(self,request,post_id):
-        resp = {"response":{},"status":0}
-        user_id = request.user.id 
-        user_post = Post.objects.filter(user_id = user_id,id =post_id).first()
+    def get(self, request, post_id):
+        user_id = request.user.id
+        user_post = Post.objects.filter(user_id=user_id, id=post_id).first()
+
         if user_post:
             text = user_post.text
-            list_word = text.split(' ')
-            total_word = len(list_word)
-            words_total_len = 0
-            for words  in list_word:
-                len_word  =  len(words)
-                words_total_len = words_total_len+len_word
-            resp['total_words'] = total_word
-            resp['avg_words'] = words_total_len/total_word
-            resp['status'] = 1
-        return Response(resp)
+            list_words = text.split(' ')
+            total_words = len(list_words)
 
-                
-                
+            if total_words > 0:
+                words_total_len = sum(len(word) for word in list_words)
 
-            
-
-            
-
+                return Response({
+                    "status": 1,
+                    "message": "User Post Analysis Successful",
+                    "total_words": total_words,
+                    "avg_words": words_total_len / total_words
+                })
+            else:
+                return Response({"status": 0, "message": "No words found in the post for analysis"},
+                                status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response({"status": 0, "message": "User Post not found"},
+                            status=status.HTTP_404_NOT_FOUND)
